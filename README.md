@@ -10,6 +10,16 @@ The assembler is single-threaded and was benchmarked on inputs ranging from the 
 
 Nand2Tetris is openly available, teaching students to build a computer, starting with implementing logic gates in HDL, and building up to writing games and an operating system which runs on the computer. For more information, the course is available at [Nand2Tetris.com](https://www.nand2tetris.org) or on Coursera.
 
+The assembler was evaluated using `hyperfine` for execution time, throughput, and memory usage, and Linux `perf stat` for branch-prediction and cache behavior. The `hyperfine` and `perf` measurements were collected in separate runs, so their execution times are reported independently.
+
+| Test | Input size | Hyperfine average | Throughput | Peak memory | Branch miss rate | L1 data-cache miss rate | LLC load-miss rate |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `Pong.asm` | 27490 lines | 1.4 ms | ~20.3M lines/sec | 3,864 KB | ~0.41% | ~0.31% | ~39.71%* |
+| `LargeTest1M.asm` | 1,000,000 lines | 189.9 ms | ~5.27M lines/sec | 4,672 KB | ~0.90% | ~0.57% | ~1.10% |
+| `LargeTest50M.asm` | 50,000,000 lines | 10.949 s | ~4.57M lines/sec | 4,824 KB | ~0.83% | ~0.58% | ~0.68% |
+
+See the [Testing, Validation, and Performance / Scaling](#testing-validation-and-performance--scaling) section for detailed results.
+
 ## Build & Usage
 
 All source files are in the `/src` folder. The Makefile builds the project and tracks dependencies, placing object and dependency files in the `/build` folder. The executable is placed in the `/Assembler` base directory. Test assembly files are in the `/test/asmfiles` folder.
@@ -101,12 +111,16 @@ I also created `./compareFiles`, which compares two files line by line, displayi
 
 Test programs can be found in the `01-TestPrograms` folder. The largest provided test program from the course is `Pong.asm`, with 28,375 lines, of which 27,483 are instructions. The solution file is identical to the output from my assembler, translated to ASCII.
 
-### Performance / Scaling
-
-The assembler is single-threaded, so the benchmark results primarily measure the efficiency of the implementation, data structures, parsing approach, and I/O rather than parallel hardware utilization.
+### Performance Testing / Scaling
 
 The benchmarks were designed to examine how the assembler behaves as input size and symbol-table usage increase. In particular, the synthetic tests were designed to approach the Hack platform's maximum number of available variable addresses while also increasing the total number of instructions by several orders of magnitude.
 
+###Cache Performance and Branch Predictions (perf)
+I used Linux `perf stat` to measure cache behavior while assembling large input files. 
+
+For the 50-million-line test, the assembler completed had a branch-miss rate of 0.83%, an L1 data-cache miss rate of approximately 0.58% and an LLC load-miss rate of approximately 0.17%. The 1-million-line test had a branch-miss rate of 0.83%, an L1 data-cache miss rate of approximately 0.57%, and an LLC load-miss rate of approximately 0.83%.
+
+###Throughput speeds
 The standard `Pong.asm` test was benchmarked using `hyperfine` with 10 warmup runs and 1,000 benchmark runs. The assembler achieved an average execution time of approximately 1.4 ms with a standard deviation of 0.2 ms, corresponding to approximately 20.3 million input lines per second. The assembler used approximately 3,864 KB of memory.
 
 Two larger synthetic programs were then used to examine scaling behavior.
@@ -181,14 +195,3 @@ The more useful scaling observations are therefore the relationship between inpu
 - There is limited error handling and limited built-in testing to ensure that output files are correctly generated.
 - The assembler is currently single-threaded.
 - The current implementation does not support processing multiple assembly files in parallel.
-
-## TODO
-
-- Use object-oriented design to create well-encapsulated classes.
-- Implement dead-register detection and storage reclamation.
-- Reduce duplicated logic, such as cleaning source lines during both the first and second passes.
-- Improve error handling.
-- Investigate whether repeated line-cleaning should be replaced with a different approach. Repeating line-cleaning avoids storing cleaned lines or writing them to an intermediate file, which would increase memory usage and I/O operations.
-- Allow users to provide directory paths, not only individual file paths.
-- Investigate symbol-table preallocation to reduce potential `unordered_map` rehashing as the number of symbols increases.
-- Investigate whether further optimizations can improve scaling on very large input files.
